@@ -26,13 +26,13 @@ La aplicación es una aplicación web que no requiere instalación. Puedes utili
 
 ### 1. Acceso directo (GitHub Pages)
 
-Visita la aplicación en: [https://tu-usuario.github.io/metodo-caco](https://tu-usuario.github.io/metodo-caco)
+Visita la aplicación en: [https://malomalote.github.io/metodo-caco](https://malomalote.github.io/metodo-caco)
 
 ### 2. Instalación local
 
 1. Clona este repositorio:
    ```bash
-   git clone https://github.com/tu-usuario/metodo-caco.git
+   git clone https://github.com/malomalote/metodo-caco.git
    ```
 
 2. Navega al directorio del proyecto:
