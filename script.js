@@ -12,6 +12,114 @@ const trainingPlan = [
     { week: 10, totalMinutes: 40, blocks: 8, walkMinutes: 0, walkSeconds: 30, runMinutes: 4, runSeconds: 30 }
 ];
 
+// Web Audio API - Sistema de audio
+let audioContext;
+let audioBuffers = {};
+const audioFiles = {
+    walk: 'caminar.mp3',
+    run: 'correr.mp3',
+    warmup: 'calentamiento.mp3',
+    bip: 'bip.mp3',
+    complete: 'completado.mp3'
+};
+let currentAudio = null;
+
+// Inicializar el sistema de audio
+async function initAudioSystem() {
+    try {
+        // Crear contexto de audio solo cuando se necesite (para evitar problemas con políticas de autoplay)
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Cargar todos los archivos de audio
+        const loadPromises = Object.entries(audioFiles).map(async ([key, url]) => {
+            try {
+                const buffer = await loadAudioFile(url);
+                audioBuffers[key] = buffer;
+            } catch (err) {
+                console.error(`Error cargando archivo de audio ${url}:`, err);
+            }
+        });
+        
+        await Promise.all(loadPromises);
+        console.log('Sistema de audio inicializado correctamente');
+    } catch (err) {
+        console.error('Error inicializando sistema de audio:', err);
+    }
+}
+
+// Cargar un archivo de audio
+async function loadAudioFile(url) {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return await audioContext.decodeAudioData(arrayBuffer);
+}
+
+// Reproducir un sonido
+function playSound(soundName, options = {}) {
+    if (!audioContext) {
+        console.warn('Sistema de audio no inicializado');
+        return null;
+    }
+    
+    // Si hay un sonido reproduciéndose con la opción stopPrevious, detenerlo
+    if (options.stopPrevious && currentAudio) {
+        currentAudio.stop();
+        currentAudio = null;
+    }
+    
+    try {
+        const buffer = audioBuffers[soundName];
+        if (!buffer) {
+            console.warn(`Sonido ${soundName} no encontrado`);
+            return null;
+        }
+        
+        // Crear fuente de sonido
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        
+        // Configurar volumen si es necesario
+        if (options.volume !== undefined && options.volume !== 1) {
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = options.volume;
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+        } else {
+            source.connect(audioContext.destination);
+        }
+        
+        // Configurar loop si es necesario
+        if (options.loop) {
+            source.loop = true;
+        }
+        
+        // Reproducir
+        source.start(0);
+        
+        // Guardar referencia si es necesario
+        if (options.saveReference) {
+            currentAudio = source;
+        }
+        
+        // Devolver la fuente para poder detenerla más tarde si es necesario
+        return source;
+    } catch (err) {
+        console.error(`Error reproduciendo sonido ${soundName}:`, err);
+        return null;
+    }
+}
+
+// Detener un sonido específico
+function stopSound(source) {
+    if (source) {
+        try {
+            source.stop();
+        } catch (err) {
+            console.error('Error al detener sonido:', err);
+        }
+    }
+}
+
 // Elementos del DOM
 const weekSelector = document.getElementById('week-selector');
 const activityType = document.getElementById('activity-type');
@@ -29,11 +137,6 @@ const prevMonthBtn = document.getElementById('prev-month');
 const nextMonthBtn = document.getElementById('next-month');
 const currentMonthDisplay = document.getElementById('current-month');
 const calendarContainer = document.getElementById('calendar');
-const walkSound = document.getElementById('walk-sound');
-const runSound = document.getElementById('run-sound');
-const warmupSound = document.getElementById('warmup-sound');
-const bipSound = document.getElementById('bip-sound');
-const completeSound = document.getElementById('complete-sound');
 
 // Elementos del modal
 const warmupModal = document.getElementById('warmup-modal');
@@ -129,17 +232,28 @@ function showWarmupModal() {
         return;
     }
     
-    warmupModal.style.display = 'block';
-    // Reproducir audio de instrucciones de calentamiento
-    warmupSound.play();
+    // Asegurarse de que el sistema de audio esté inicializado
+    if (!audioContext) {
+        initAudioSystem().then(() => {
+            warmupModal.style.display = 'block';
+            // Reproducir audio de instrucciones de calentamiento
+            playSound('warmup', { saveReference: true, stopPrevious: true });
+        });
+    } else {
+        warmupModal.style.display = 'block';
+        // Reproducir audio de instrucciones de calentamiento
+        playSound('warmup', { saveReference: true, stopPrevious: true });
+    }
 }
 
 // Cerrar modal de calentamiento
 function closeWarmupModal() {
     warmupModal.style.display = 'none';
     // Detener audio de calentamiento
-    warmupSound.pause();
-    warmupSound.currentTime = 0;
+    if (currentAudio) {
+        stopSound(currentAudio);
+        currentAudio = null;
+    }
 }
 
 // Confirmar calentamiento y comenzar entrenamiento
@@ -226,9 +340,8 @@ function updateTimer() {
     if (timeRemaining > 0) {
         // Reproducir pitidos en los últimos 3 segundos antes de cambiar de modo
         if (timeRemaining <= 3) {
-            // Crear una copia del sonido para evitar problemas de reproducción simultánea
-            const bipSoundClone = bipSound.cloneNode();
-            bipSoundClone.play();
+            // Reproducir sonido de bip con volumen bajo para no interrumpir música
+            playSound('bip', { volume: 0.5 });
         }
         
         timeRemaining--;
@@ -251,7 +364,7 @@ function updateTimer() {
             activityType.className = 'activity-run';
             
             // Reproducir sonido de aviso para correr
-            runSound.play();
+            playSound('run', { volume: 0.7 });
             
         } else {
             // Fin del bloque actual
@@ -270,7 +383,7 @@ function updateTimer() {
                 activityType.className = 'activity-walk';
                 
                 // Reproducir sonido de aviso para caminar
-                walkSound.play();
+                playSound('walk', { volume: 0.7 });
                 
             } else {
                 // Entrenamiento completado
@@ -290,7 +403,7 @@ function completeWorkout() {
     workoutCompleted = true;
     
     // Reproducir sonido de finalización
-    completeSound.play();
+    playSound('complete', { volume: 0.7 });
     
     // Actualizar UI
     activityType.textContent = '¡Completado!';
@@ -417,4 +530,18 @@ function renderCalendar() {
 }
 
 // Iniciar la aplicación cuando el DOM esté cargado
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    
+    // Inicializar el sistema de audio cuando el usuario interactúa con la página
+    // Esto es necesario para evitar problemas con las políticas de autoplay
+    const handleUserInteraction = () => {
+        initAudioSystem();
+        // Eliminar los event listeners después de la primera interacción
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('touchstart', handleUserInteraction);
+    };
+    
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+});
