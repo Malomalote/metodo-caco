@@ -24,9 +24,9 @@ Esta aplicación web proporciona temporizadores, avisos sonoros y un sistema de 
 
 La aplicación es una aplicación web que no requiere instalación. Puedes utilizarla de dos maneras:
 
-### 1. Acceso directo (GitHub Pages)
+### 1. Acceso directo
 
-Visita la aplicación en: [https://malomalote.github.io/metodo-caco](https://malomalote.github.io/metodo-caco)
+Visita la aplicación en: [https://metodocaco.surge.sh/](https://metodocaco.surge.sh/)
 
 ### 2. Instalación local
 
